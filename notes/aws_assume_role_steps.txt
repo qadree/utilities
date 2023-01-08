@@ -1,0 +1,49 @@
+#AWS Assume role steps - Creating a role named 'iam-key-rotate'
+
+#Get policy version
+aws iam get-policy --policy-arn arn:aws:iam::aws:policy/IAMFullAccess| jq -r .Policy.DefaultVersionId
+
+#Get policy json using version from above
+aws iam get-policy-version --policy-arn arn:aws:iam::aws:policy/IAMFullAccess --version-id v2
+
+#	-- Create trust policy json manually and save to file
+{
+  "Version": "2012-10-17",
+  "Statement": {
+    "Effect": "Allow",
+    "Principal": { "AWS": "arn:aws:iam::626709457834:user/qadree.woodland" },
+    "Action": "sts:AssumeRole"
+  }
+}
+
+
+#Create role using trust policy json
+aws iam create-role --role-name iam-key-rotate --assume-role-policy-document file://./iam_trust_policy.json
+
+#attach role to policy
+aws iam attach-role-policy --role-name iam-key-rotate --policy-arn arn:aws:iam::aws:policy/IAMFullAccess
+
+
+# it's go time - run assume role command and export the resulting credentials to enviroment variables
+creds=`aws sts assume-role --role-arn arn:aws:iam::626709457834:role/iam-key-rotate --role-session-name key-rotate --duration-seconds 900 --query 'Credentials.{AKI:AccessKeyId,SAK:SecretAccessKey,ST:SessionToken}' --output text`
+export AWS_ACCESS_KEY_ID=`echo ${creds} | awk '{print $1}'`
+export AWS_SECRET_ACCESS_KEY=`echo ${creds} | awk '{print $2}'`
+export AWS_SECURITY_TOKEN=`echo ${creds} | awk '{print $3}'`
+
+
+
+######################### From policy generator
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Stmt1660009298851",
+      "Action": [
+        "iam:CreateAccessKey",
+        "iam:DeleteAccessKey"
+      ],
+      "Effect": "Allow",
+      "Resource": "arn:aws:iam::626709457834:user/qadree.woodland"
+    }
+  ]
+}

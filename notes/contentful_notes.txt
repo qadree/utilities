@@ -1,0 +1,4 @@
+## CLI space import
+contentful space import --content-file export.json --space-id $SPACE_ID
+
+

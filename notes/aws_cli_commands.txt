@@ -1,0 +1,49 @@
+#commands assume jq is not installed and that profile is set using environemnt variable
+
+#metadata within instance
+http://169.254.169.254/latest/meta-data/instance-id
+
+#cloudwatch total s3 bucket size query over specified time period
+aws cloudwatch get-metric-statistics \
+--namespace AWS/S3 --start-time 2018-01-09T01:00:00 \
+--end-time 2018-01-10T23:00:00 \
+--period 86400 \
+--statistics Average \
+--region us-east-1 \
+--metric-name BucketSizeBytes \
+--dimensions Name=BucketName,Value=$bucket Name=StorageType,Value=StandardStorage
+
+#cloudtrail ec2 instance-id search
+aws cloudtrail lookup-events --lookup-attributes AttributeKey=ResourceName,AttributeValue=${instancei_id}
+
+#List regions
+aws ec2 describe-regions --query "Regions[].RegionName" --output text
+aws ec2 describe-regions --output text|cut -f3
+
+#Terminate individual ec2 instance
+aws ec2 terminate-instances --instance-ids
+
+#List autoscaling group names
+aws autoscaling describe-auto-scaling-groups --query 'AutoScalingGroups[*].AutoScalingGroupName'
+
+#List private IP of ec2 instances
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].PrivateIpAddress'
+
+#List private IP's based on instance name
+aws ec2 describe-instances --filters "Name=tag:Name,Values='elasticsearch data'" --query 'Reservations[*].Instances[*].PrivateIpAddress'
+
+#List instance attributes (ID, tags, etc.) based on IP
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId, Tags]' --filter "Name=network-interface.addresses.private-ip-address,Values=10.100.10.75" --output text
+
+#List 2 attributes of an instance, InstanceId and LaunchTime
+aws ec2 describe-instances --filters "Name=tag:Name,Values='es171-staging elasticsearch data'" --query 'Reservations[*].Instances[*].[InstanceId, LaunchTime]'
+
+#List names of ec2 instances
+aws ec2 describe-instances --query 'Reservations[].Instances[].Tags[?Key==`Name`].Value' --output text|sort -u
+
+#ASG name from IP search
+aws ec2 describe-instances --query "Reservations[].Instances[].Tags[?Key=='aws:autoscaling:groupName'].Value" --filter "Name=network-interface.addresses.private-ip-address,Values=10.101.6.39" --output text
+
+#Add or modify tags - multiple tag and resources
+aws ec2 create-tags --resources i-0335bdb4008bc683c i-022a79371df9e19dc i-075f66dc39d948219 i-075f66dc39d948219 i-08d4c4d5a0f46d766 i-0de5876a977ba07f6 --tags Key=application,Value=cassandra Key=service,Value=cassandra-node
+

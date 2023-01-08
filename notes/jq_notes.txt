@@ -1,0 +1,63 @@
+# parse json stored in bash variable
+jq -n --arg jq_variable "$bash_variable" '$jq_variable|fromjson'
+
+# select by instance id
+jq '.Reservations[].Instances[] | select(.InstanceId=="i-xxxxxxxx")'
+
+# get name tag of instance
+jq '.Reservations[].Instances[].Tags[] | select(.["Key"]=="Name") | .Value'
+
+# id and IP based on name
+jq '.Reservations[].Instances[] | select(.Tags[].Value=="staging elasticsearch data") | .InstanceId + " " + .PrivateIpAddress'
+
+# same filter as above, but with tag key and value designated
+jq '.Reservations[].Instances[] | select (.Tags[] | .Key == "Name" and .Value == "production kafka broker") | .InstanceId'
+
+# partial name match that prints name tag and instancei_id
+jq '.Reservations[].Instances[] | select (.Tags[] | .Key == "Name" and (.Value|test("elastic"))) | "\(.Tags[] | select(.["Key"]=="Name") |.Value)   \(.InstanceId)"'
+
+# partial name search for any tag value
+aws ec2 describe-instances | jq '.Reservations[].Instances[] | select (any (.Tags[]; .Value | test("elastic";"i"))) | "\(.Tags[] | select(.["Key"]=="Name") | .Value)   \(.PrivateIpAddress)"'
+
+# boolean 'and' tag search that prints InstanceId, PrivateIpAddress, and specified tags of an ec2 node
+jq -r '.Reservations[].Instances[] | select (
+(.Tags[] | .Key == "island" and .Value == "mt") and 
+(.Tags[] | .Key == "purpose" and .Value == "weather") and 
+(.Tags[] | .Key == "cluster" and .Value == "staging") 
+) | 
+"\(.Tags[] | select(.["Key"]=="island") | .Value)
+ \(.Tags[] | select(.["Key"]=="cluster") | .Value)
+ \(.Tags[] | select(.["Key"]=="purpose") | .Value)
+ \(.Tags[] | select(.["Key"]=="Name") | .Value)
+ \(.InstanceId) \(.PrivateIpAddress)"'
+
+# EBS volume id
+jq '.Reservations[].Instances[].BlockDeviceMappings[].Ebs["VolumeId"]'
+
+# kafkacat check for under replicated topics on a broker
+kafkacat -b 10.10.7.142 -L -J | jq '.topics[] | .topic as $topic | .partitions[].partition as $p | .partitions[] | .isrs as $isr | .replicas as $r | select($r | length > ($isr | length)) | $topic'|uniq
+
+# under replicated with partitions zero padded for sorting
+kafkacat -b 10.113.8.141 -L -J | jq '.topics[] | .topic as $topic | (.partitions[].partition|tostring) as $p | .partitions[] | .isrs as $isr | .replicas as $r | select($r | length > ($isr | length)) | $topic + " " + if ($p | length) < 2 then "0" + $p else $p end'|sort|uniq
+
+# pure jq version of under replicated topics (note: need to add variables to show partitions)
+kafkacat -b 10.113.9.150 -L -J | jq '.topics | map(select( any(.partitions[]; (.isrs | length) < (.replicas | length) ))) | .[].topic'
+
+# Kafkacat output to topic list json file for kafka
+kafkacat -b 10.112.12.91 -LJ | jq '. | {topics: [{topic: .topics[].topic}], version:1}'
+
+# AWS describe instances inventory w/tags (island, cluster, application)
+jq -r '.Reservations[].Instances | map({ id: .InstanceId, ip: .PrivateIpAddress, tags: (.Tags // [] | map({ key: .Key, value: .Value }) | from_entries) }) | .[] | "\(.id) \(.ip) island=\(.tags.island) cluster=\(.tags.cluster) application=\(.tags.application)"'
+
+# elasticsearch shard status
+curl -s 'localhost:9200/_cluster/health?level=shards' | jq '.indices | (to_entries[]) | .value.status + "    " + .key + "    " + (.value.shards | (to_entries[]) | .key + "   " + .value.status)'
+
+# case insensitive exact length match
+jq --arg token "$to_token" '.tokens[]|select(.symbol|test("^" + $token + "$";"i"))'
+jq '.tokens[]|select(.symbol|test("^usdc$";"i"))'
+
+# string replace - ex. Strip '/change/' from AWS change ID.
+jq -r '.ChangeInfo.Id|sub("/change/";"")
+
+# csv to json
+jq -Rs '(split("\r\n"))| (.[0]|split(",")) as $fields | .[1:-1][]|split(",") as $records| reduce range($fields|length) as $i ({}; . + {($fields[$i]): ($records[$i])})'

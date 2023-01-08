@@ -1,0 +1,28 @@
+# get team labels:
+curl -s console.staging.example.com:8080/v2/apps| jq -r '.apps[]| "\(.id)   \(.labels)"'
+
+# Debug stuck marathon deployments with cli - https://docs.mesosphere.com/1.9/monitoring/debugging/cli-debugging/
+## my bash function to set dcos url
+dcos_config qa qa2
+
+## view stuck deployments
+dcos marathon debug list
+
+## inspect the apps that appear in debug list
+dcos marathon debug summary ${app_id}
+dcos marathon debug details ${app_id}
+
+## monitor marathon events
+curl -sH "Accept: text/event-stream" console.qa2.qa.example.com:8080/v2/events
+
+## list node IP’s and ID’s
+dcos node
+
+# restart apps
+
+apps=$(curl -s localhost:8080/v2/apps| jq -r '.apps[]|select(.id|test("app-name";"i"))| .id')
+for app in $apps; do
+  curl -s -XPOST localhost:8080/v2/apps${app}/restart
+done
+
+# marathon-lb troubleshooting - https://docs.mesosphere.com/1.9/networking/marathon-lb/advanced/
