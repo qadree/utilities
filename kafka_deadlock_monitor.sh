@@ -12,7 +12,7 @@ else
   mv ${dump_file}{,_$(date "+%m%d%H%M%Y")}
   curl -X POST -d '
     {
-    "entity_id":"Deadlocked threads on EMD staging - '$(hostname)'"'',
+    "entity_id":"Deadlocked threads on '$(hostname)'"'',
     "message_type":"critical",
     "state_message":"Thread deadlock detected."
     }' $victorops_url
